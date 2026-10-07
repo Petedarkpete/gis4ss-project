@@ -1,0 +1,103 @@
+# Markdown practice {#sec-markdown-practice}
+
+This is a practice of markdown.
+
+## Table created from code {#sec-table-created-code}
+
+First, generate some number.
+
+```{python}
+#| label: markdown-setup
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+rng = np.random.default_rng(2026)
+```
+
+Second, convert the date to dateframe and format the date.
+
+```{python}
+#| label: make-neighborhoods
+
+pct_college = rng.uniform(10, 70, 12).round(1)
+neighborhoods = pd.DataFrame({
+    "neighborhood": [f"N{i:02d}" for i in range(1, 13)],
+    "pct_college": pct_college,
+    "median_rent": (900 + 14 * pct_college + rng.normal(0, 90, 12)).round(0),
+    "dist_center_km": rng.uniform(0.5, 12, 12).round(1),
+})
+```
+
+Third, make the table.
+
+```{python}
+#| label: tbl-neighborhoods
+#| tbl-cap: 'Median rent, college share, and distance to the center for twelve synthetic neighborhoods'
+neighborhoods
+```
+
+@tbl-neighborhoods shows the table of neighborshods.
+
+## Markdown {#sec-markdown}
+
+Here is a markdown table using pipe table syntax.
+
+| Presentation | What it shows |
+|------|-----------------|
+| 1: Proposal | The question, the data you expect to use, and the plan |
+| 2: Data | The data actually obtained, cleaned, and described |
+| 3: Preliminary results | First analysis, and what it changes about the plan |
+| 4: Final results | The finished analysis, presented as a talk |
+
+: The four class presentations {#tbl-presentations tbl-colwidths="false"}
+
+@tbl-presentations Shows that we have four presentations.
+
+## Figure from code {#sec-figure-from-code}
+
+```{python}
+#| label: fig-rent-college
+#| fig-cap: Median rent against college share, twelve synthetic neighborhoods
+ 
+fig, ax = plt.subplots(figsize=(6, 3.5))
+ax.scatter(neighborhoods["pct_college"], neighborhoods["median_rent"], s=24)
+ax.set_xlabel("College-educated residents (%)")
+ax.set_ylabel("Median rent (USD)")
+ax.spines[["top", "right"]].set_visible(False)
+plt.show()
+```
+
+@fig-rent-college shows the median rent.
+
+## Figure code (#sec-fig-code)
+
+## Image from disk {#sec-image-from-disk}
+
+Here is an example of Ualbany fountain. 
+
+![A beautiful place in New Zealand.](pic/markdown/Sunset.jpg.webp){#fig-sunset width="80%"}
+
+@fig-sunset shows a sunset photo of the tropical sea, downloded from the Pixabay website.
+
+## Math equations
+
+Here is an equation showing the relationship between x and y.
+
+$$
+\begin{aligned}@greenbergTimeSeriesAnalysis2017@balkDeterminingGlobalPopulation2006@balkDeterminingGlobalPopulation2006@greenbergTimeSeriesAnalysis2017@balkDeterminingGlobalPopulation2006
+y_i & = \beta_0 + \beta_1 x_i + \epsilon_i \\
+\epsilon_i & \sim N(0, \sigma^2)
+\end{aligned}
+$$ {#eq-linear-relationship} 
+
+@eq-linear-relationship shows the relationship between two variables.
+
+$x_i$ is the predictor variable, $y_i$ is the response variable, $\beta_0$ is the intercept, $\beta_1$ is the coefficient, $\epsilon$ is the residuals, which is assumed to follow gaussian distribution, $\sim N(0, \sigma^2)$, and $\sigma$ is the standard errors.
+
+## Citations
+
+@greenbergTimeSeriesAnalysis2017 discusses crime rates over time.
+
+Global population distribution can be studied using different methods and data [@balkDeterminingGlobalPopulation2006].

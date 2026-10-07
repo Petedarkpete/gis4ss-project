@@ -1,0 +1,98 @@
+<!-- Search fallback for file:// viewing.
+     Quarto's search UI (quarto-search.js) is a classic script and runs fine on
+     file:// pages, but its readSearchData() refuses to run on file:// (it shows
+     an alert: "Search requires JavaScript features disabled ...") because
+     fetch("search.json") is blocked on the file:// protocol.
+
+     Workaround: quarto-search.js is a classic (non-module) script, so its
+     top-level `var fuseIndex` is a window global. This script pre-builds the
+     Fuse index from search-index.js (auto-generated from search.json by
+     tools/build-local-search-index.py after each render) and assigns it to
+     window.fuseIndex. readSearchData() then sees an existing index, skips the
+     file:// guard entirely, and search works. A fetch() shim for search.json
+     is kept as a safety net. Online (http/https), this script does nothing.
+
+     NOTE: this relies on quarto-search.js internals (fuseIndex global and its
+     kFuseIndexOptions); re-check after major Quarto upgrades. -->
+<script>
+(function () {
+  if (window.location.protocol !== "file:") return;
+
+  // Same offset mechanism quarto-search.js uses (meta name="quarto:offset")
+  function siteOffset() {
+    var metas = document.getElementsByTagName("meta");
+    for (var i = 0; i < metas.length; i++) {
+      if (metas[i].getAttribute("name") === "quarto:offset") {
+        return metas[i].getAttribute("content") || "";
+      }
+    }
+    return "";
+  }
+
+  var indexReady = null;
+  function loadIndexScript() {
+    if (indexReady) return indexReady;
+    indexReady = new Promise(function (resolve) {
+      var s = document.createElement("script");
+      s.src = siteOffset() + "search-index.js";
+      s.onload = function () { resolve(window.__quartoSearchIndex || null); };
+      s.onerror = function () { resolve(null); };
+      (document.head || document.documentElement).appendChild(s);
+    });
+    return indexReady;
+  }
+
+  // Must mirror kFuseIndexOptions in site_libs/quarto-search/quarto-search.js
+  var kFuseIndexOptions = {
+    keys: [
+      { name: "title", weight: 20 },
+      { name: "section", weight: 20 },
+      { name: "text", weight: 10 }
+    ],
+    ignoreLocation: true,
+    threshold: 0.1
+  };
+
+  // Pre-build the index and hand it to quarto-search.js via its global.
+  // Runs on DOMContentLoaded so fuse.min.js and quarto-search.js (classic
+  // scripts in <head>) have already executed, whatever the include order.
+  function prebuildIndex() {
+    if (!window.Fuse) return; // no search on this page
+    loadIndexScript().then(function (docs) {
+      if (!docs) return;
+      if (typeof window.fuseIndex !== "undefined" && window.fuseIndex) return;
+      var fuse = new window.Fuse([], kFuseIndexOptions);
+      for (var i = 0; i < docs.length; i++) fuse.add(docs[i]);
+      window.fuseIndex = fuse;
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", prebuildIndex);
+  } else {
+    prebuildIndex();
+  }
+
+  // Safety net: if anything still fetches search.json on file://, serve the
+  // embedded index instead of failing.
+  var nativeFetch = window.fetch ? window.fetch.bind(window) : null;
+  window.fetch = function (resource, init) {
+    var url = typeof resource === "string" ? resource : (resource && resource.url) || "";
+    if (/(^|\/)search\.json$/.test(url)) {
+      return loadIndexScript().then(function (data) {
+        if (data) {
+          return {
+            status: 200,
+            ok: true,
+            json: function () { return Promise.resolve(data); }
+          };
+        }
+        if (nativeFetch) return nativeFetch(resource, init);
+        return Promise.reject(new Error("Local search index unavailable"));
+      });
+    }
+    if (nativeFetch) return nativeFetch(resource, init);
+    return Promise.reject(new Error("fetch is unavailable on this page"));
+  };
+})();
+</script>

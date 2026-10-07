@@ -1,0 +1,66 @@
+# Proposal {#sec-proposal}
+
+## Title
+
+Affordable Housing in Albany, New York
+
+## Literature Review
+
+Housing affordability is commonly measured by comparing housing costs with household income[@hudAffordableHousing]. The U.S. Department of Housing and Urban Development (HUD) generally considers housing affordable when housing costs are no more than 30 percent of household income. Households that spend more than this amount may have less money available for other important needs. This project uses rent and income data to examine differences in housing affordability across census tracts in Albany, New York.
+
+## Project Description
+
+### Research Question
+
+How does housing affordability vary across census tracts in Albany, New York?
+
+### Why This Matters
+
+Housing affordability is an important issue because housing costs can affect where people are able to live. This project will help show how housing affordability differs across areas of Albany, New York.
+
+## Data
+
+This project will use data from the U.S. Census Bureau. I will use the 2024 American Community Survey (ACS) 5-Year Estimates to collect median gross rent and median household income for census tracts in Albany, New York. I will also use 2024 TIGER/Line census tract boundaries to create maps of housing affordability.
+
+## Methods
+
+I will compare median gross rent and median household income across census tracts in Albany. I will calculate a housing affordability measure by comparing annual rent to annual household income. Then, I will join the results to the census tract boundaries and create a map to show where housing costs are higher or lower relative to income.
+
+### Spatial Pitfalls
+
+Census tracts do not represent individual households. Housing costs and income can vary within the same census tract. Also, census tracts have different population sizes. I will keep these limitations in mind when interpreting the map and will describe the results as area-level patterns rather than conditions for individual households.
+
+## Expected Results
+
+I expect housing affordability to vary across census tracts in Albany. Some areas may have higher housing costs relative to household income, while other areas may be more affordable. The final map will help show these differences across Albany.
+
+## Next Steps
+
+The next step is to clean and combine the ACS data with the census tract boundaries. I will calculate housing affordability for each census tract and create a map to compare different areas in Albany. After creating the map, I will review the results and explain the main patterns.
+
+## IRB
+
+This project uses publicly available data from the U.S. Census Bureau and does not involve human subjects. Therefore, IRB approval is not required.
+
+## Feasibility Test
+
+To test the feasibility of this project, I downloaded 2024 ACS data for median gross rent and median household income, along with 2024 TIGER/Line census tract boundaries. The following test checks whether the data can be loaded and used for the analysis.
+
+
+
+```{python}
+import pandas as pd
+import geopandas as gpd
+```
+```{python}
+rent = pd.read_csv("data/ACSDT5Y2024.B25064-Data.csv")
+income = pd.read_csv("data/ACSDT5Y2024.B19013-Data.csv")
+
+print(rent.head())
+print(income.head())
+```
+print("Rent rows:", len(rent))
+print("Income rows:", len(income))
+
+
+

@@ -1,0 +1,89 @@
+# Model {#sec-model}
+
+```{python}
+import pandas as pd
+import geopandas as gpd
+
+rent = pd.read_csv("data/ACSDT5Y2024.B25064-Data.csv")
+income = pd.read_csv("data/ACSDT5Y2024.B19013-Data.csv")
+tracts = gpd.read_file("data/tl_2024_36_tract.zip")
+
+rent = rent.iloc[1:].copy()
+income = income.iloc[1:].copy()
+
+rent["tract"] = rent["GEO_ID"].str[-6:]
+income["tract"] = income["GEO_ID"].str[-6:]
+
+rent["median_rent"] = pd.to_numeric(
+    rent["B25064_001E"].astype(str).str.replace(",", ""),
+    errors="coerce"
+)
+income["median_income"] = pd.to_numeric(
+    income["B19013_001E"], errors="coerce"
+)
+
+data = rent[["tract", "median_rent"]].merge(
+    income[["tract", "median_income"]],
+    on="tract",
+    how="inner"
+)
+
+tracts["tract"] = tracts["TRACTCE"]
+```
+
+## Rent and Income Relationship
+
+This section examines the relationship between median household income and median gross rent across census tracts.
+
+```{python}
+import matplotlib.pyplot as plt
+gdf = tracts.merge(data, on="tract", how="inner")
+plt.scatter(gdf["median_income"], gdf["median_rent"])
+plt.xlabel("Median Household Income")
+plt.ylabel("Median Gross Rent")
+plt.title("Median Income and Rent")
+plt.show()
+```
+
+```{python}
+import numpy as np
+
+model_data = gdf[["median_income", "median_rent"]].dropna()
+
+x = model_data["median_income"]
+y = model_data["median_rent"]
+
+slope, intercept = np.polyfit(x, y, 1)
+correlation = np.corrcoef(x, y)[0, 1]
+
+print("Slope:", slope)
+print("R-squared:", correlation ** 2)
+plt.scatter(x, y)
+plt.plot(x, slope * x + intercept)
+plt.xlabel("Median Household Income")
+plt.ylabel("Median Gross Rent")
+plt.title("Median Income and Rent with Regression Line")
+plt.show()
+```
+
+The results show a positive relationship between median household income and median gross rent. The R-squared value is about 0.21, which means income explains about 21% of the differences in rent across the census tracts.
+
+## Rent Map
+
+```{python}
+gdf.plot(
+    column="median_rent",
+    legend=True,
+    figsize=(10, 8)
+)
+
+plt.title("Median Gross Rent by Census Tract")
+plt.axis("off")
+plt.show()
+```
+
+The map shows differences in median gross rent across census tracts. Some areas have higher rents, while other areas have lower rents.
+
+## Conclusion
+
+The results show that areas with higher household income generally have higher rent. However, income does not explain all of the differences in rent.

@@ -1,0 +1,78 @@
+# Data {#sec-data}
+
+## Data Sources
+
+This project uses data from the U.S. Census Bureau. I will use the 2024 American Community Survey (ACS) 5-Year Estimates for census tracts in Albany, New York.
+
+The main variables are median gross rent and median household income. I will also use 2024 TIGER/Line census tract boundaries to connect the data to geographic areas and create maps.
+
+## Variables
+
+The main variables used in this project are:
+
+- Median gross rent
+- Median household income
+- Census tract boundaries
+
+These variables will be used to compare housing costs with household income across census tracts in Albany.
+
+## Load Data
+
+The following code loads the ACS housing and income data that will be used in this project.
+
+```{python}
+import pandas as pd
+import geopandas as gpd
+
+rent = pd.read_csv("data/ACSDT5Y2024.B25064-Data.csv")
+income = pd.read_csv("data/ACSDT5Y2024.B19013-Data.csv")
+tracts = gpd.read_file("data/tl_2024_36_tract.zip")
+```
+
+## Data Check
+
+```{python}
+print("Rent data:", rent.shape)
+print("Income data:", income.shape)
+print("Tracts data:", tracts.shape)
+```
+
+## Clean ACS Data
+
+```{python}
+rent.head()
+rent.columns
+```
+
+```{python}
+rent = rent.iloc[1:].copy()
+income = income.iloc[1:].copy()
+
+rent["tract"] = rent["GEO_ID"].str[-6:]
+income["tract"] = income["GEO_ID"].str[-6:]
+
+rent["median_rent"] = pd.to_numeric(
+    rent["B25064_001E"].astype(str).str.replace(",", ""),
+    errors="coerce"
+)
+income["median_income"] = pd.to_numeric(income["B19013_001E"], errors="coerce")
+
+rent[["tract", "median_rent"]].head()
+rent[["B25064_001E", "B25064_001M"]].head(10)
+
+data = rent[["tract", "median_rent"]].merge(
+    income[["tract", "median_income"]],
+    on="tract",
+    how="inner"
+)
+data.head()
+
+tracts["tract"] = tracts["GEOID"].str[-6:]
+
+gdf = tracts.merge(
+    data,
+    on="tract",
+    how="inner"
+)
+
+gdf.head()

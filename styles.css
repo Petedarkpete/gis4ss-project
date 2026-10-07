@@ -1,0 +1,28 @@
+/* Left-align sub-figure captions in layout panels */
+.quarto-layout-panel .quarto-layout-cell-subref figcaption,
+.quarto-layout-panel .quarto-layout-cell-subref .quarto-float-caption {
+  text-align: left;
+}
+
+/* All Quarto tables: shrink-wrap the float to the table, then center
+   the caption within that width (not the full page column). */
+figure.quarto-float-tbl {
+  display: table;
+  width: auto;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: auto;
+}
+
+figure.quarto-float-tbl > .quarto-float-caption,
+figure.quarto-float-tbl > figcaption {
+  display: table-caption;
+  caption-side: top;
+  text-align: center;
+}
+
+/* Short tables: size to content instead of stretching full width */
+.tbl-compact table,
+table.tbl-compact {
+  width: auto !important;
+}

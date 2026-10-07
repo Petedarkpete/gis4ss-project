@@ -1,0 +1,15 @@
+# Updates {.unnumbered}
+
+Reader-facing change log, newest first, dated absolutely (YYYY-MM-DD).
+
+- 2026-09-28: I reviewed the feedback for Progress Report 3 and updated my proposal. I improved the spatial pitfalls section and added row counts to the feasibility test. I used ChatGPT to help me understand the feedback and make these corrections.
+
+- 2026-09-21: I completed my research proposal about housing affordability in Albany, New York. I added my research question, literature review, data, methods, spatial pitfalls, expected results, next steps, IRB statement, and feasibility test. I used 2024 ACS data for median gross rent and median household income. I also added a HUD reference and used ChatGPT to help organize the proposal and troubleshoot the Python code. I rendered the project and checked the final output.
+
+- 2026-09-20: I added a labeled equation and two citations from sources I read. I used Zotero and Better BibTeX to add the references. I used ChatGPT to help me understand the assignment and the steps. ChatGPT first told me to check references.qmd directly, but I learned that the citations are checked in the rendered book. I corrected this by rendering the book and checking the final output.
+
+- 2026-09-13: I updated my project title and organized my project files. I used ChatGPT to help me understand the assignment instructions and the required changes. ChatGPT first directed me to the wrong project folder. I caught the mistake and opened the correct book folder before making changes.
+
+- 2026-09-06: We practices markdown syntax: (1) created data and showing the table from code; (2) Show a table using pipe syntax; (3) created a figure from code; (4) inserted an image from local drive.
+
+- 2026-09-01: project created from template.

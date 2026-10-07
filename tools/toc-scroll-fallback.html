@@ -1,0 +1,120 @@
+<!-- Classic (non-module) TOC scroll spy for file:// viewing.
+     Browsers block ES-module scripts (site_libs/quarto-html/quarto.js) on file:// pages,
+     so the TOC gets no highlighting and no expand/collapse locally. This script
+     replicates quarto.js's updateActiveLink() + walk() in a classic script.
+     It only runs on file:// — when pages are served over http(s), quarto.js works
+     and this script does nothing. -->
+<script>
+(function () {
+  // Only needed when ES modules are blocked (file://). Online, quarto.js handles this.
+  if (window.location.protocol !== "file:") return;
+
+  function initTocScrollFallback() {
+    var tocEl = document.querySelector('nav.toc-active[role="doc-toc"]');
+    if (!tocEl) return;
+    var tocLinks = [].slice.call(tocEl.querySelectorAll("a[data-scroll-target]"));
+    if (!tocLinks.length) return;
+
+    var sections = tocLinks.map(function (link) {
+      var target = link.getAttribute("data-scroll-target");
+      if (!target) return null;
+      if (target.charAt(0) === "#") {
+        return document.getElementById(decodeURI(target.slice(1)));
+      }
+      return document.querySelector(decodeURI(target));
+    });
+
+    var sectionMargin = 200;
+    var currentActive = -1;
+
+    var tocOpenDepthStr = tocEl.getAttribute("data-toc-expanded");
+    var tocOpenDepth = tocOpenDepthStr ? Number(tocOpenDepthStr) : 1;
+
+    function throttle(fn, wait) {
+      var t = null;
+      return function () {
+        if (t) return;
+        t = setTimeout(function () {
+          t = null;
+          fn();
+        }, wait);
+      };
+    }
+
+    // Mirrors quarto.js updateActiveLink()
+    function updateActiveLink() {
+      var i;
+      var current = -1;
+      if (window.innerHeight + window.pageYOffset >= document.body.offsetHeight) {
+        // Scrolled to the bottom: last existing section is active
+        for (i = sections.length - 1; i >= 0; i--) {
+          if (sections[i]) {
+            current = i;
+            break;
+          }
+        }
+      } else {
+        // Last section whose top has passed the margin line
+        for (i = 0; i < sections.length; i++) {
+          if (sections[i] && window.pageYOffset >= sections[i].offsetTop - sectionMargin) {
+            current = i;
+          }
+        }
+      }
+      if (current === -1 || current === currentActive) {
+        return current !== -1;
+      }
+      currentActive = current;
+      for (i = 0; i < tocLinks.length; i++) tocLinks[i].classList.remove("active");
+      tocLinks[current].classList.add("active");
+      return true;
+    }
+
+    function prevSiblingIsActiveLink(el) {
+      var sibling = el.previousElementSibling;
+      return !!(sibling && sibling.tagName === "A" && sibling.classList.contains("active"));
+    }
+
+    // Mirrors quarto.js walk(): expand ULs that are top level, contain the
+    // active link, or directly follow the active link; collapse the rest.
+    function walk(el, depth) {
+      if (el.tagName === "UL") depth = depth + 1;
+
+      var isActiveNode = el.tagName === "A" && el.classList.contains("active");
+
+      var hasActiveChild = false;
+      var i;
+      for (i = 0; i < el.children.length; i++) {
+        hasActiveChild = walk(el.children[i], depth) || hasActiveChild;
+      }
+
+      if (el.tagName === "UL") {
+        if (tocOpenDepth === -1 && depth > 1) {
+          el.classList.add("collapse");
+        } else if (depth <= tocOpenDepth || hasActiveChild || prevSiblingIsActiveLink(el)) {
+          el.classList.remove("collapse");
+        } else {
+          el.classList.add("collapse");
+        }
+        depth = depth - 1;
+      }
+      return hasActiveChild || isActiveNode;
+    }
+
+    function update() {
+      updateActiveLink();
+      walk(tocEl, 0);
+    }
+
+    update();
+    window.addEventListener("scroll", throttle(update, 5), { passive: true });
+    window.addEventListener("resize", throttle(update, 10));
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initTocScrollFallback);
+  } else {
+    initTocScrollFallback();
+  }
+})();
+</script>

@@ -1,0 +1,69 @@
+# Quarto configuration — book project (class project / thesis / manuscript).
+# Set your title and author under `book:` below, and list each new chapter
+# under `chapters:`. Pick a CSL file per field if your citation style differs.
+
+project:
+  type: book
+  post-render:
+    - tools/build-local-search-index.py
+    - tools/make-zips.py
+
+execute:
+  enabled: true
+  cache: true
+  freeze: auto
+
+filters:
+  - color-text.lua
+
+format:
+  html:
+    theme:
+      - cosmo
+      - theme.scss
+    code-fold: false
+    code-tools: true
+    highlight-style: github
+    code-overflow: wrap
+    toc: true
+    toc-title: "On this page"
+    toc-depth: 4
+    fig-align: left
+    number-sections: true
+    number-depth: 4
+    css: styles.css
+    include-in-header:
+      - tools/toc-scroll-fallback.html
+      - tools/search-fallback.html
+
+bibliography: references.bib
+
+book:
+  title: "Affordable Housing in Albany, New York"
+  author: " Mohammed Alanazi"
+  date: today
+  search: true
+  reader-mode: true
+  sidebar:
+    style: docked
+    background: light
+  page-navigation: true
+
+  # Chapter list: list each chapter file here, in the order it should appear
+  # in the book. Recommended naming convention: `01-proposal.qmd`,
+  # `02-data.qmd`, `03-methods.qmd`, etc. Keep the indentation consistent as
+  # you add new chapters.
+  chapters:
+    - index.qmd
+    - updates.qmd
+    - 01-proposal.qmd
+    - 02-data.qmd
+    - 03-model.qmd
+
+  # Appendices list: list each appendix file here, in the order it should
+  # appear in the book. Recommended naming convention: `references.qmd`,
+  # `a-name.qmd`, `b-name.qmd`, etc. Keep the indentation consistent as you
+  # add new appendices. The `appendices:` section title is optional.
+  # appendices:
+    - a-markdown-practice.qmd
+    - references.qmd

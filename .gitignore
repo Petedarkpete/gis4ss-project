@@ -1,0 +1,25 @@
+# Generated output and caches
+/.quarto/
+/_book/
+/_freeze/
+/_site/
+/_share/
+*_files/
+__pycache__/
+.jupyter_cache/
+
+# Python environment — rebuild it with `uv sync`, never commit it
+/.venv/
+
+# Pre-edit backups and staged deletions (generated; can hold anything)
+/_backup/
+/_to_delete/
+
+# Live session output can carry sensitive data — ignored by purpose, not by content
+/transcripts/
+
+# Credentials as environment variables (see CLAUDE.md > Privacy) — never commit these
+.env
+.env.*
+
+**/*.quarto_ipynb
