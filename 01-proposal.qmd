@@ -20,11 +20,17 @@ Housing affordability is an important issue because housing costs can affect whe
 
 ## Data
 
-This project will use data from the U.S. Census Bureau. I will use the 2024 American Community Survey (ACS) 5-Year Estimates to collect median gross rent and median household income for census tracts in Albany, New York. I will also use 2024 TIGER/Line census tract boundaries to create maps of housing affordability.
+This project uses three data sets from the U.S. Census Bureau, all for census tracts in Albany, New York:
+
+- **Median gross rent** — 2024 American Community Survey (ACS) 5-Year Estimates, table B25064. Source: data.census.gov. License: U.S. government work, (not under copyright in the United States). Accessed 2026-09-21. 87 rows (consisting of one descriptive header and 86 census tracts).
+- **Median household income** — 2024 ACS 5-Year Estimates, table B19013. Source: data.census.gov. License: U.S. government work. Accessed 2026-09-21. 87 rows (one descriptive header row plus 86 census tracts).
+- **Census tract boundaries** — 2024 TIGER/Line Shapefiles. Source: census.gov TIGER/Line. License: U.S. government work. Accessed 2026-09-21. 85 tracts in Albany County, New York.
 
 ## Methods
 
 I will compare median gross rent and median household income across census tracts in Albany. I will calculate a housing affordability measure by comparing annual rent to annual household income. Then, I will join the results to the census tract boundaries and create a map to show where housing costs are higher or lower relative to income.
+
+This project uses median household income for all households (ACS table B19013), not renter households specifically, because the Census Bureau's standard tract-level tables do not separate the two. A classmate raised this as a concern during the proposal presentation: if renters earn less than homeowners within the same tract, using the all-household median could understate how much rent actually burdens renters. This is a real limitation of the available data, and the affordability measure in this project should be read as comparing rent to overall tract income, not specifically to renter income.
 
 ### Spatial Pitfalls
 
@@ -51,16 +57,13 @@ To test the feasibility of this project, I downloaded 2024 ACS data for median g
 ```{python}
 import pandas as pd
 import geopandas as gpd
-```
-```{python}
+
 rent = pd.read_csv("data/ACSDT5Y2024.B25064-Data.csv")
 income = pd.read_csv("data/ACSDT5Y2024.B19013-Data.csv")
 
 print(rent.head())
 print(income.head())
-```
 print("Rent rows:", len(rent))
 print("Income rows:", len(income))
 
-
-
+``` 

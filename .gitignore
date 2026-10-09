@@ -23,3 +23,7 @@ __pycache__/
 .env.*
 
 **/*.quarto_ipynb
+
+# OS and editor clutter
+.DS_Store
+*.code-workspace
