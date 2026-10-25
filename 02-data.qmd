@@ -18,15 +18,15 @@ These variables will be used to compare housing costs with household income acro
 
 ## Load Data
 
-The following code loads the ACS housing and income data that will be used in this project.
+The following code loads the ACS housing and income data, fetched by `scripts/02-download-acs.py`, and the Albany County tract boundaries, fetched by `scripts/01-download-tracts.py`.
 
 ```{python}
 import pandas as pd
 import geopandas as gpd
 
-rent = pd.read_csv("data/ACSDT5Y2024.B25064-Data.csv")
-income = pd.read_csv("data/ACSDT5Y2024.B19013-Data.csv")
-tracts = gpd.read_file("data/tl_2024_36_tract.zip")
+rent = pd.read_csv("data/acs-rent.csv", dtype={"state": str, "county": str, "tract": str})
+income = pd.read_csv("data/acs-income.csv", dtype={"state": str, "county": str, "tract": str})
+tracts = gpd.read_file("data/albany-tracts.gpkg")
 ```
 
 ## Data Check
@@ -40,39 +40,70 @@ print("Tracts data:", tracts.shape)
 ## Clean ACS Data
 
 ```{python}
-rent.head()
-rent.columns
-```
-
-```{python}
-rent = rent.iloc[1:].copy()
-income = income.iloc[1:].copy()
-
-rent["tract"] = rent["GEO_ID"].str[-6:]
-income["tract"] = income["GEO_ID"].str[-6:]
-
-rent["median_rent"] = pd.to_numeric(
-    rent["B25064_001E"].astype(str).str.replace(",", ""),
-    errors="coerce"
-)
-income["median_income"] = pd.to_numeric(income["B19013_001E"], errors="coerce")
-
-rent[["tract", "median_rent"]].head()
-rent[["B25064_001E", "B25064_001M"]].head(10)
+rent = rent.rename(columns={"B25064_001E": "median_rent"})
+income = income.rename(columns={"B19013_001E": "median_income"})
 
 data = rent[["tract", "median_rent"]].merge(
     income[["tract", "median_income"]],
     on="tract",
     how="inner"
 )
-data.head()
 
-tracts["tract"] = tracts["GEOID"].str[-6:]
+gdf = tracts.merge(data, left_on="TRACTCE", right_on="tract", how="inner")
+print(gdf[["TRACTCE", "median_rent", "median_income"]].head())
+```
 
-gdf = tracts.merge(
-    data,
-    on="tract",
-    how="inner"
-)
 
-gdf.head()
+## Checks
+
+- **Row count.** 85 rows in each of `data/acs-rent.csv`, `data/acs-income.csv`, and `data/albany-tracts.gpkg`, matching the expected number of Albany County census tracts exactly.
+- **Join key.** `tract` (from the ACS data) and `TRACTCE` (from the tract boundaries) are both 6-character zero-padded strings and join with no unmatched rows on either side.
+- **Boundary year.** The 2024 TIGER/Line tract boundaries match the 2024 ACS 5-Year estimates — same vintage, no mismatch.
+- **Codes that are not values.** Tract 013706's `median_rent` and tracts 000404 and 000800's `median_income` are all `-666666666`, the Census Bureau's code for "could not be computed," not real values. These will need to be treated as missing data, not numbers, when cleaning (Progress Report 6).
+
+
+## Documentation
+
+```{python}
+import pandas as pd
+pd.read_csv("data/documentation.csv")
+```
+
+
+## Maps
+
+```{python}
+import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots(figsize=(6, 6))
+gdf.plot(ax=ax, color="none", edgecolor="black")
+ax.set_title("Albany County Census Tract Boundaries (2024 TIGER/Line)")
+ax.axis("off")
+plt.show()
+
+plot_rent = gdf[gdf["median_rent"] != -666666666]
+
+fig, ax = plt.subplots(figsize=(6, 6))
+plot_rent.plot(column="median_rent", legend=True, ax=ax)
+ax.set_title("Median Gross Rent by Census Tract, Albany County, 2024 ($)")
+ax.axis("off")
+plt.show()
+
+plot_income = gdf[gdf["median_income"] != -666666666]
+
+fig, ax = plt.subplots(figsize=(6, 6))
+plot_income.plot(column="median_income", legend=True, ax=ax)
+ax.set_title("Median Household Income by Census Tract, Albany County, 2024 ($)")
+ax.axis("off")
+plt.show()
+
+```
+
+Tract 013706 is excluded from the rent map above — its `median_rent` value is the Census "not computed" code, not real data. Tracts 000404 and 000800 are excluded from the income map for the same reason (see Checks).
+
+
+## What Changed from the Proposal
+
+My original proposal (`01-proposal.qmd`) reported 87 rows for the rent and income ACS files, based on manually-downloaded CSVs from data.census.gov. Those files included one descriptive header row and one row for "Albany County, New York" as a whole, in addition to the real tract-level rows. After switching to a reproducible script (`scripts/02-download-acs.py`) that queries the Census API directly for tract-level geography only, both files now have exactly 85 rows — one per census tract, matching the 85 Albany County tracts in the TIGER/Line boundaries exactly. This is a more precise count than what the proposal stated, not a different sample of data.
+
+The proposal also did not anticipate that three tracts (013706 for rent; 000404 and 000800 for income) would carry a value of `-666666666`, the Census Bureau's code for "could not be computed," rather than a real number. This will need to be treated as missing data during cleaning in Progress Report 6, rather than included as-is in any calculation.

@@ -1,0 +1,4 @@
+dataset,source,geography,year,license,access_date,row_count,file,notes
+Median gross rent,Census ACS 5-Year table B25064 via Census API,Albany County census tracts,2024,US government work,2026-10-09,85,data/acs-rent.csv,"Tract 013706 has median_rent = -666666666, the Census code for not computed, not a real value"
+Median household income,Census ACS 5-Year table B19013 via Census API,Albany County census tracts,2024,US government work,2026-10-09,85,data/acs-income.csv,
+Census tract boundaries,TIGER/Line Shapefiles via Census Bureau,Albany County,2024,US government work,2026-10-09,85,data/albany-tracts.gpkg,Filtered from 5411 tracts statewide in New York
