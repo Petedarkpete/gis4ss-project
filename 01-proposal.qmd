@@ -36,6 +36,8 @@ This project uses median household income for all households (ACS table B19013),
 
 Census tracts do not represent individual households. Housing costs and income can vary within the same census tract. Also, census tracts have different population sizes. I will keep these limitations in mind when interpreting the map and will describe the results as area-level patterns rather than conditions for individual households.
 
+A second concern is that American Community Survey estimates carry margins of error, and this matters especially at the census tract level, where small sample sizes can make estimates less reliable. The rent and income data I downloaded include a margin-of-error column for each estimate (`B25064_001M` for rent, `B19013_001M` for income). My plan is to calculate each tract's coefficient of variation — the margin of error divided by the estimate — and flag tracts with a high coefficient of variation as less reliable when interpreting the final map, rather than treating every tract's number as equally precise.
+
 ## Expected Results
 
 I expect housing affordability to vary across census tracts in Albany. Some areas may have higher housing costs relative to household income, while other areas may be more affordable. The final map will help show these differences across Albany.

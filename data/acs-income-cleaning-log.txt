@@ -1,0 +1,4 @@
+Step 1: loaded data/acs-income.csv, 85 rows
+Step 2: confirmed one row per tract
+Step 3: set 2 tract(s) with code -666666666 to missing: ['000404', '000800']
+Step 4: wrote 85 rows to data/acs-income-clean.csv

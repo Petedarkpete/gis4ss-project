@@ -54,13 +54,41 @@ print(gdf[["TRACTCE", "median_rent", "median_income"]].head())
 ```
 
 
+## Coordinate Reference System
+
+This project uses `EPSG:26918` (NAD83 / UTM zone 18N), a projected coordinate system measured in meters, suited to Albany County's location in eastern New York. The tract boundaries and ACS data are reprojected into it below.
+
+```{python}
+gdf = gdf.to_crs("EPSG:26918")
+print(gdf.crs)
+```
+
+
+## Cleaning: Median Gross Rent
+
+- **Problem:** 2 of 85 tracts (000800, 013706) had `-666666666` as their rent estimate — the Census Bureau's code for "could not be computed," not a real value, as found in the Checks below. **Fix:** `scripts/03-clean-rent.py` reads `data/acs-rent.csv`, sets both the estimate and its margin of error to missing for these 2 tracts, and writes the result to `data/acs-rent-clean.csv`. The script's log (`data/acs-rent-cleaning-log.txt`) confirms: 85 rows in, 2 tracts corrected, 85 rows out.
+
+### Margins of Error
+
+```{python}
+clean_rent = pd.read_csv("data/acs-rent-clean.csv", dtype={"tract": str})
+clean_rent["cv"] = clean_rent["B25064_001M"] / clean_rent["B25064_001E"]
+example = clean_rent.dropna(subset=["cv"]).iloc[0]
+print(f"Example: {example['NAME']} has a margin of error of {example['B25064_001M']:.0f} "
+      f"on an estimate of {example['B25064_001E']:.0f}, a coefficient of variation of "
+      f"{example['cv']:.1%}.")
+print(f"Across all tracts with a valid estimate, the coefficient of variation ranges from "
+      f"{clean_rent['cv'].min():.1%} to {clean_rent['cv'].max():.1%}.")
+```
+
+Some tracts' rent estimates are considerably less reliable than others. The final analysis will need to weigh or flag high-coefficient-of-variation tracts rather than treating every estimate as equally precise.
+
 ## Checks
 
 - **Row count.** 85 rows in each of `data/acs-rent.csv`, `data/acs-income.csv`, and `data/albany-tracts.gpkg`, matching the expected number of Albany County census tracts exactly.
 - **Join key.** `tract` (from the ACS data) and `TRACTCE` (from the tract boundaries) are both 6-character zero-padded strings and join with no unmatched rows on either side.
 - **Boundary year.** The 2024 TIGER/Line tract boundaries match the 2024 ACS 5-Year estimates — same vintage, no mismatch.
-- **Codes that are not values.** Tract 013706's `median_rent` and tracts 000404 and 000800's `median_income` are all `-666666666`, the Census Bureau's code for "could not be computed," not real values. These will need to be treated as missing data, not numbers, when cleaning (Progress Report 6).
-
+- **Codes that are not values.** Tracts 013706 and 000800's `median_rent` and tracts 000404 and 000800's `median_income` are all `-666666666`, the Census Bureau's code for "could not be computed," not real values. These will need to be treated as missing data, not numbers, when cleaning (Progress Report 6).
 
 ## Documentation
 
@@ -72,6 +100,8 @@ pd.read_csv("data/documentation.csv")
 
 ## Maps
 
+All three maps below show the full extent of Albany County, New York (2024 TIGER/Line tract boundaries).
+
 ```{python}
 import matplotlib.pyplot as plt
 
@@ -81,29 +111,45 @@ ax.set_title("Albany County Census Tract Boundaries (2024 TIGER/Line)")
 ax.axis("off")
 plt.show()
 
-plot_rent = gdf[gdf["median_rent"] != -666666666]
+clean_rent_geo = tracts.merge(clean_rent, left_on="TRACTCE", right_on="tract", how="inner")
 
 fig, ax = plt.subplots(figsize=(6, 6))
-plot_rent.plot(column="median_rent", legend=True, ax=ax)
+clean_rent_geo.plot(column="B25064_001E", legend=True, ax=ax, missing_kwds={"color": "lightgrey", "label": "No estimate"})
 ax.set_title("Median Gross Rent by Census Tract, Albany County, 2024 ($)")
 ax.axis("off")
 plt.show()
 
-plot_income = gdf[gdf["median_income"] != -666666666]
+clean_income = pd.read_csv("data/acs-income-clean.csv", dtype={"tract": str})
+clean_income_geo = tracts.merge(clean_income, left_on="TRACTCE", right_on="tract", how="inner")
 
 fig, ax = plt.subplots(figsize=(6, 6))
-plot_income.plot(column="median_income", legend=True, ax=ax)
+clean_income_geo.plot(column="B19013_001E", legend=True, ax=ax, missing_kwds={"color": "lightgrey", "label": "No estimate"})
 ax.set_title("Median Household Income by Census Tract, Albany County, 2024 ($)")
 ax.axis("off")
 plt.show()
 
 ```
 
-Tract 013706 is excluded from the rent map above — its `median_rent` value is the Census "not computed" code, not real data. Tracts 000404 and 000800 are excluded from the income map for the same reason (see Checks).
+Both maps above are built from the cleaned files (`data/acs-rent-clean.csv`, `data/acs-income-clean.csv`); the grey tracts in each are the ones with no real estimate — 013706 and 000800 for rent, 000404 and 000800 for income — shown rather than hidden, so the gap is visible (see Checks).
 
 
 ## What Changed from the Proposal
 
 My original proposal (`01-proposal.qmd`) reported 87 rows for the rent and income ACS files, based on manually-downloaded CSVs from data.census.gov. Those files included one descriptive header row and one row for "Albany County, New York" as a whole, in addition to the real tract-level rows. After switching to a reproducible script (`scripts/02-download-acs.py`) that queries the Census API directly for tract-level geography only, both files now have exactly 85 rows — one per census tract, matching the 85 Albany County tracts in the TIGER/Line boundaries exactly. This is a more precise count than what the proposal stated, not a different sample of data.
 
-The proposal also did not anticipate that three tracts (013706 for rent; 000404 and 000800 for income) would carry a value of `-666666666`, the Census Bureau's code for "could not be computed," rather than a real number. This will need to be treated as missing data during cleaning in Progress Report 6, rather than included as-is in any calculation.
+The proposal also did not anticipate that four tracts (013706 and 000800 for rent; 000404 and 000800 for income) would carry a value of `-666666666`, the Census Bureau's code for "could not be computed," rather than a real number. This will need to be treated as missing data during cleaning in Progress Report 6, rather than included as-is in any calculation.
+
+## Cleaning: Median Household Income
+
+- **Problem:** 2 of 85 tracts (000404, 000800) had `-666666666` as their income estimate — the same Census "not computed" code found in the rent data. **Fix:** `scripts/04-clean-income.py` reads `data/acs-income.csv`, sets both the estimate and its margin of error to missing for these 2 tracts, and writes the result to `data/acs-income-clean.csv`. The script's log (`data/acs-income-cleaning-log.txt`) confirms: 85 rows in, 2 tracts corrected, 85 rows out.
+
+## Analysis File
+
+`scripts/05-build-analysis-file.py` joins the cleaned rent and income files to the tract boundaries on the 6-digit tract code, reprojects to `EPSG:26918`, and writes the result to `data/albany-analysis.gpkg` — 85 rows, matching every dataset that went into it, with no unmatched rows on either side.
+
+## Codebook
+
+```{python}
+import pandas as pd
+pd.read_csv("data/codebook.csv")
+```
