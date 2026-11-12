@@ -59,11 +59,12 @@ book:
     - 01-proposal.qmd
     - 02-data.qmd
     - 03-model.qmd
+    - 04-results.qmd
 
   # Appendices list: list each appendix file here, in the order it should
   # appear in the book. Recommended naming convention: `references.qmd`,
   # `a-name.qmd`, `b-name.qmd`, etc. Keep the indentation consistent as you
   # add new appendices. The `appendices:` section title is optional.
-  # appendices:
+  appendices:
     - a-markdown-practice.qmd
     - references.qmd

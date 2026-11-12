@@ -1,89 +1,178 @@
 # Model {#sec-model}
 
+## Analysis Plan (2026-11-01)
+
+- **Question.** How does housing affordability — median gross rent relative to median household income — vary across census tracts in Albany County, New York?
+- **Outcome variable.** `median_rent` (US dollars per month), from the cleaned analysis file.
+- **Unit of analysis.** The 85 census tracts of Albany County, New York.
+- **Method.** An OLS regression of rent on income, checked for spatial dependence with Moran's I (global and local) on the regression residuals, with diagnostics (White's heteroskedasticity-robust standard errors, Lagrange multiplier tests for spatial lag and spatial error dependence) deciding whether a spatial model is warranted.
+- **Spatial weights.** Queen contiguity, built from the analysis file's tract polygons after dropping rows with missing rent or income. Compared against a second scheme (k-nearest-neighbors, k=4) to check sensitivity to the choice of weights.
+- **Permutations and seed.** 999 permutations, random seed 42, for every Moran's I calculation; local Moran's I additionally run twice more with different seeds (43, 44) to check stability, and false-discovery-rate correction applied to the local results.
+- **Checks.** The spatial pitfalls named in `01-proposal.qmd` — tracts not representing individual households, and margins of error on small-area estimates — are run as part of this analysis, in the Spatial Checks table below.
+- **Possible interpretations.** A significant positive Moran's I on the residuals would mean nearby tracts have more similar rent-income relationships than chance, meaning the OLS model is missing a spatial pattern (an unmeasured neighborhood effect); a lack of autocorrelation, after checking, would mean the simple regression is not obviously leaving out a spatial variable.
+
+## Load Data
+
 ```{python}
-import pandas as pd
 import geopandas as gpd
 
-rent = pd.read_csv("data/ACSDT5Y2024.B25064-Data.csv")
-income = pd.read_csv("data/ACSDT5Y2024.B19013-Data.csv")
-tracts = gpd.read_file("data/tl_2024_36_tract.zip")
-
-rent = rent.iloc[1:].copy()
-income = income.iloc[1:].copy()
-
-rent["tract"] = rent["GEO_ID"].str[-6:]
-income["tract"] = income["GEO_ID"].str[-6:]
-
-rent["median_rent"] = pd.to_numeric(
-    rent["B25064_001E"].astype(str).str.replace(",", ""),
-    errors="coerce"
-)
-income["median_income"] = pd.to_numeric(
-    income["B19013_001E"], errors="coerce"
-)
-
-data = rent[["tract", "median_rent"]].merge(
-    income[["tract", "median_income"]],
-    on="tract",
-    how="inner"
-)
-
-tracts["tract"] = tracts["TRACTCE"]
+gdf = gpd.read_file("data/albany-analysis.gpkg")
+print(gdf.shape)
+print(gdf.crs)
 ```
 
-## Rent and Income Relationship
+## Exploratory Look
 
-This section examines the relationship between median household income and median gross rent across census tracts.
+```{python}
+print("median_rent: count =", gdf["median_rent"].count(), ", missing =", gdf["median_rent"].isna().sum())
+print("median_income: count =", gdf["median_income"].count(), ", missing =", gdf["median_income"].isna().sum())
+```
 
 ```{python}
 import matplotlib.pyplot as plt
-gdf = tracts.merge(data, on="tract", how="inner")
-plt.scatter(gdf["median_income"], gdf["median_rent"])
-plt.xlabel("Median Household Income")
-plt.ylabel("Median Gross Rent")
-plt.title("Median Income and Rent")
+
+fig, ax = plt.subplots(figsize=(6, 6))
+gdf.plot(column="median_rent", scheme="quantiles", k=5, legend=True, ax=ax, missing_kwds={"color": "lightgrey", "label": "No estimate"})
+ax.set_title("Median Gross Rent by Census Tract, Quantiles ($)")
+ax.axis("off")
 plt.show()
 ```
+
+```{python}
+fig, ax = plt.subplots(figsize=(6, 6))
+gdf.plot(column="median_rent", scheme="natural_breaks", k=5, legend=True, ax=ax, missing_kwds={"color": "lightgrey", "label": "No estimate"})
+ax.set_title("Median Gross Rent by Census Tract, Natural Breaks ($)")
+ax.axis("off")
+plt.show()
+```
+
+The quantiles scheme puts an equal number of tracts in each of the 5 bins; natural breaks instead groups tracts by gaps in the data itself. The two maps shade some tracts differently, which is a reminder that the choice of classification scheme changes how the same data looks, not just how it is labeled.
+
+## Spatial Weights
+
+Queen contiguity is the main choice — two tracts are neighbors if they share any boundary point, which suits irregularly-shaped census tracts better than a fixed distance would. Weights are built from the same 83 tracts that have both a rent and an income value, since a tract with no value cannot be compared to its neighbors anyway.
+
+```{python}
+from libpysal.weights import Queen, KNN
+
+gdf_valid = gdf.dropna(subset=["median_rent", "median_income"]).reset_index(drop=True)
+print("Tracts with complete data:", len(gdf_valid))
+
+w_queen = Queen.from_dataframe(gdf_valid, use_index=False)
+print("Queen contiguity: islands =", len(w_queen.islands))
+w_queen.transform = "r"
+
+w_knn = KNN.from_dataframe(gdf_valid, k=4)
+print("K-nearest-neighbors (k=4): islands =", len(w_knn.islands))
+w_knn.transform = "r"
+```
+
+An island is a tract with no neighbors under that weights scheme — it would be excluded from any spatial statistic computed with those weights. Neither weights scheme has any islands here, so no tracts need to be dropped for that reason. K-nearest-neighbors (k=4) is the comparison scheme: every tract gets exactly 4 neighbors by distance, regardless of shared borders, which removes islands entirely but means a tract's "neighbors" might not be physically adjacent to it.
+
+## Outcome Autocorrelation
 
 ```{python}
 import numpy as np
+from esda.moran import Moran, Moran_Local
 
-model_data = gdf[["median_income", "median_rent"]].dropna()
+y = gdf_valid["median_rent"].values
 
-x = model_data["median_income"]
-y = model_data["median_rent"]
+np.random.seed(42)
+moran_queen = Moran(y, w_queen, permutations=999)
+print(f"Global Moran's I (Queen): I = {moran_queen.I:.3f}, p = {moran_queen.p_sim:.3f}")
 
-slope, intercept = np.polyfit(x, y, 1)
-correlation = np.corrcoef(x, y)[0, 1]
-
-print("Slope:", slope)
-print("R-squared:", correlation ** 2)
-plt.scatter(x, y)
-plt.plot(x, slope * x + intercept)
-plt.xlabel("Median Household Income")
-plt.ylabel("Median Gross Rent")
-plt.title("Median Income and Rent with Regression Line")
-plt.show()
+np.random.seed(42)
+moran_knn = Moran(y, w_knn, permutations=999)
+print(f"Global Moran's I (k-nearest-neighbors): I = {moran_knn.I:.3f}, p = {moran_knn.p_sim:.3f}")
 ```
-
-The results show a positive relationship between median household income and median gross rent. The R-squared value is about 0.21, which means income explains about 21% of the differences in rent across the census tracts.
-
-## Rent Map
 
 ```{python}
-gdf.plot(
-    column="median_rent",
-    legend=True,
-    figsize=(10, 8)
-)
+np.random.seed(42)
+local_42 = Moran_Local(y, w_queen, permutations=999)
+np.random.seed(43)
+local_43 = Moran_Local(y, w_queen, permutations=999)
+np.random.seed(44)
+local_44 = Moran_Local(y, w_queen, permutations=999)
 
-plt.title("Median Gross Rent by Census Tract")
-plt.axis("off")
-plt.show()
+def fdr_threshold_value(p_values, alpha=0.05):
+    """Benjamini-Hochberg false-discovery-rate threshold."""
+    sorted_p = np.sort(p_values)
+    n = len(sorted_p)
+    below = sorted_p <= (np.arange(1, n + 1) / n) * alpha
+    return sorted_p[below].max() if below.any() else 0.0
+
+fdr_threshold = fdr_threshold_value(local_42.p_sim, 0.05)
+n_significant = (local_42.p_sim < fdr_threshold).sum()
+print(f"FDR-corrected p-value threshold: {fdr_threshold:.4f}")
+print(f"Tracts significant after FDR correction: {n_significant} of {len(y)}")
+print(f"Local I correlation, seed 42 vs 43: {np.corrcoef(local_42.Is, local_43.Is)[0,1]:.3f}")
+print(f"Local I correlation, seed 42 vs 44: {np.corrcoef(local_42.Is, local_44.Is)[0,1]:.3f}")
 ```
 
-The map shows differences in median gross rent across census tracts. Some areas have higher rents, while other areas have lower rents.
+Both weights schemes find significant positive spatial autocorrelation in rent: nearby tracts tend to have more similar rents than a random arrangement would produce. The result is not an artifact of one weights choice — Queen contiguity (I = 0.290) and k-nearest-neighbors (I = 0.188) agree on the direction and significance, though Queen finds a stronger pattern. After the stricter false-discovery-rate correction, only 2 of 82 tracts remain individually significant local clusters — most of the overall pattern is a broad, modest tendency rather than a few extreme hot spots. The local I values themselves are identical across all three random seeds, which is expected: the statistic itself is computed directly from the data and weights, and only the simulated significance test depends on the random draw.
 
-## Conclusion
+## Main Analysis
 
-The results show that areas with higher household income generally have higher rent. However, income does not explain all of the differences in rent.
+```{python}
+import spreg
+
+X = gdf_valid[["median_income"]].values
+Y = gdf_valid[["median_rent"]].values
+
+ols = spreg.OLS(
+    Y, X,
+    w=w_queen,
+    name_y="median_rent",
+    name_x=["median_income"],
+    name_w="queen",
+    robust="white",
+    spat_diag=True,
+    moran=True,
+)
+print(ols.summary)
+```
+
+The Breusch-Pagan and Koenker-Bassett tests both reject constant error variance (p < 0.01), which is why White's heteroskedasticity-robust standard errors were used rather than the ordinary ones. More importantly, Moran's I on the OLS residuals (0.228, p = 0.0003) shows that a simple OLS regression is missing real spatial structure: nearby tracts' errors are correlated, not independent as OLS assumes.
+
+The Lagrange multiplier tests for *which* spatial model to use are ambiguous rather than decisive: both the plain LM-lag (p = 0.005) and LM-error (p = 0.002) tests are significant, but neither robust version is (robust LM-lag p = 0.77, robust LM-error p = 0.16) — the standard decision rule, which looks at the robust versions once both plain tests are significant, does not point clearly to one specification. Since robust LM-error has the lower p-value of the two, a spatial error model is fit below as the better-supported choice, with this ambiguity stated plainly rather than hidden.
+
+```{python}
+#| warning: false
+error_model = spreg.ML_Error(
+    Y, X,
+    w=w_queen,
+    name_y="median_rent",
+    name_x=["median_income"],
+    name_w="queen",
+)
+print(error_model.summary)
+```
+
+The spatial error term itself is significant (λ = 0.381, p = 0.0057), confirming that the spatial pattern Moran's I found in the OLS residuals is real, not noise. The income coefficient barely changes between the two models (0.00472 in OLS, 0.00464 here) and stays significant, so accounting for spatial error does not overturn the basic finding — higher-income tracts do have higher rent — but it does fit the data better (AIC 1164.6, versus 1172.2 for OLS), confirming that treating nearby tracts as independent, as plain OLS does, understates how much some of the apparent pattern is really spatial clustering rather than the income relationship itself.
+
+## Spatial Checks
+
+```{python}
+import pandas as pd
+
+se_rent = gdf_valid["median_rent_moe"] / 1.645
+cv_rent = se_rent / gdf_valid["median_rent"]
+
+checks = pd.DataFrame([
+    {
+        "Spatial pitfall": "Tracts do not represent individual households",
+        "Status": "Run",
+        "What it found": 'Results are described as area-level patterns throughout (e.g. "tracts with higher income tend to have higher rent"), not as claims about individual households.',
+    },
+    {
+        "Spatial pitfall": "Margins of error on small-area estimates",
+        "Status": "Run",
+        "What it found": (
+            f"Coefficient of variation on rent (standard error ÷ estimate) averages "
+            f"{cv_rent.mean():.1%}, ranging up to {cv_rent.max():.1%} across the 83 tracts "
+            f"with an estimate; the regression above does not account for this varying reliability."
+        ),
+    },
+])
+print(checks.to_string(index=False))
+```

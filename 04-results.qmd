@@ -1,0 +1,114 @@
+---
+execute:
+  cache: false
+---
+
+# Results {#sec-results}
+
+This chapter reports the results of the analysis planned in @sec-model (dated 2026-11-01): how does housing affordability — median gross rent relative to median household income — vary across the census tracts of Albany County, New York?
+
+```{python}
+#| warning: false
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+import spreg
+from esda.moran import Moran
+
+gdf = gpd.read_file("data/albany-analysis.gpkg")
+gdf_valid = gdf.dropna(subset=["median_rent", "median_income"]).reset_index(drop=True)
+
+n_tracts = len(gdf)
+n_valid = len(gdf_valid)
+
+from libpysal.weights import Queen
+w_queen = Queen.from_dataframe(gdf_valid, use_index=False)
+w_queen.transform = "r"
+
+X = gdf_valid[["median_income"]].values
+Y = gdf_valid[["median_rent"]].values
+
+ols = spreg.OLS(Y, X, w=w_queen, name_y="median_rent", name_x=["median_income"], robust="white")
+income_coef = ols.betas[1][0]
+income_se = ols.std_err[1]
+income_t = ols.tvals[1] if hasattr(ols, "tvals") else income_coef / income_se
+r_squared = ols.r2
+
+np.random.seed(42)
+residual_moran = Moran(ols.u.flatten(), w_queen, permutations=999)
+
+error_model = spreg.ML_Error(Y, X, w=w_queen, name_y="median_rent", name_x=["median_income"])
+intercept_coef = error_model.betas[0][0]
+intercept_se = error_model.std_err[0]
+intercept_p = error_model.z_stat[0][1]
+income_error_coef = error_model.betas[1][0]
+income_error_se = error_model.std_err[1]
+income_error_p = error_model.z_stat[1][1]
+lambda_coef = error_model.betas[-1][0]
+lambda_se = error_model.std_err[-1]
+lambda_p = error_model.z_stat[-1][1]
+```
+
+## Main Finding
+
+Across the `{python} n_valid` Albany County census tracts with both a rent and an income estimate (of `{python} n_tracts` total), median household income is a statistically significant predictor of median gross rent: each additional dollar of median household income is associated with an increase of `{python} f"{income_coef:.4f}"` dollars in median gross rent (White's robust standard error `{python} f"{income_se:.4f}"`, p `{python} "< 0.001" if ols.t_stat[1][1] < 0.001 else f"= {ols.t_stat[1][1]:.3f}"`), and income explains `{python} f"{r_squared:.1%}"` of the variation in rent across tracts (R²).
+
+The OLS residuals themselves show significant positive spatial autocorrelation (Moran's I = `{python} f"{residual_moran.I:.3f}"`, p = `{python} f"{residual_moran.p_sim:.3f}"`), meaning nearby tracts' unexplained rent is more similar than chance — a plain income-only model is missing a spatial pattern. A spatial error model confirms this: the spatial error term is itself significant (λ = `{python} f"{lambda_coef:.3f}"`, p = `{python} f"{lambda_p:.4f}"`).
+
+## Results Table
+
+| Variable | Coefficient | Std. Error | p-value |
+|:---|---:|---:|---:|
+| Intercept | `{python} f"{intercept_coef:.2f}"` | `{python} f"{intercept_se:.2f}"` | `{python} f"{intercept_p:.4f}"` |
+| Median household income | `{python} f"{income_error_coef:.5f}"` | `{python} f"{income_error_se:.5f}"` | `{python} f"{income_error_p:.4f}"` |
+| Spatial error term (λ) | `{python} f"{lambda_coef:.3f}"` | `{python} f"{lambda_se:.3f}"` | `{python} f"{lambda_p:.4f}"` |
+
+: Spatial error model of median gross rent (US dollars per month) on median household income (US dollars per year), 82 Albany County census tracts. {#tbl-regression}
+
+@tbl-regression reports the spatial error model's coefficients. The unit of the income coefficient is dollars of rent per dollar of income; the intercept and its standard error are in dollars of rent.
+
+## Results Map
+
+```{python}
+#| label: fig-rent-map
+#| fig-cap: "Median gross rent by census tract, Albany County, New York, 2024 (US dollars per month). Quantile classification, 5 classes. Tracts with no estimate (013706, 000800) shown in grey. EPSG:26918 (NAD83 / UTM zone 18N)."
+
+import matplotlib.pyplot as plt
+from matplotlib_scalebar.scalebar import ScaleBar
+
+fig, ax = plt.subplots(figsize=(7, 7))
+gdf.plot(
+    column="median_rent", scheme="quantiles", k=5, legend=True, ax=ax,
+    missing_kwds={"color": "lightgrey", "label": "No estimate"},
+    legend_kwds={"title": "Median gross rent\n($ per month)"},
+)
+ax.add_artist(ScaleBar(1, location="lower left"))
+ax.axis("off")
+plt.show()
+```
+
+@fig-rent-map shows the same pattern reported numerically above: tracts cluster, with higher-rent tracts concentrated toward the northeast of the county rather than scattered randomly, consistent with the significant positive spatial autocorrelation found in the Main Finding.
+
+## Spatial Checks
+
+```{python}
+se_rent = gdf_valid["median_rent_moe"] / 1.645
+cv_rent = se_rent / gdf_valid["median_rent"]
+cv_mean = cv_rent.mean()
+cv_max = cv_rent.max()
+```
+
+| Spatial pitfall | Status | Estimate |
+|:---|:---|:---|
+| Tracts do not represent individual households | Run | Not a numeric estimate — a scope statement: every finding above describes area-level patterns across `{python} n_valid` tracts, not individual households. |
+| Margins of error on small-area estimates | Run | Coefficient of variation on rent averages `{python} f"{cv_mean:.1%}"`, ranging up to `{python} f"{cv_max:.1%}"` across tracts with an estimate. |
+
+: Spatial checks promised in the proposal, with the estimate each one actually produced. {#tbl-checks}
+
+## What Changed Since the Analysis Plan
+
+The 2026-11-01 analysis plan is followed as written, with one addition made after seeing the first results: the Lagrange multiplier diagnostics for choosing between a spatial lag and spatial error model were not anticipated in the plan, since the plan did not commit in advance to one specification. **Added after the first results:** running both LM tests and using the robust versions to choose the spatial error model, once the diagnostics came back ambiguous rather than pointing cleanly to one model.
+
+## Observation and Interpretation
+
+Everything above is observation: what the data and the models show, stated in their own terms. What this might mean for housing policy in Albany — whether this income-rent relationship reflects discrimination, supply constraints, or something else, and what if anything should be done about it — is interpretation, and is deliberately kept out of this chapter. That discussion is drafted in `notes/2026-11-08-interpretation.md`, dated, to be developed in Progress Report 10 once Lecture 10 (discussion and conclusions) has been covered.
